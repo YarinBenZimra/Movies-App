@@ -3,16 +3,18 @@ import { useState, useEffect } from "react";
 import { searchMovies, getPopularMovies } from "../../services/api";
 import { Link } from "react-router-dom";
 import styles from "./Home.module.css";
-import Loading from "../../components/Loading/Loading";
 
 function Home() {
   const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState(""); // 🔹 Tracks active search term
+  const [searchQuery, setSearchQuery] = useState("");
   const [movies, setMovies] = useState([]);
+  const [filteredMovies, setFilteredMovies] = useState([]); // 🔹 Stores filtered movies
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedGenre, setSelectedGenre] = useState("all");
+  const [sortOption, setSortOption] = useState("default"); // Sorting option
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -20,9 +22,9 @@ function Home() {
         setLoading(true);
         let data;
         if (searchQuery) {
-          data = await searchMovies(searchQuery, currentPage); // 🔹 Fetch search results
+          data = await searchMovies(searchQuery, currentPage);
         } else {
-          data = await getPopularMovies(currentPage); // 🔹 Fetch popular movies
+          data = await getPopularMovies(currentPage);
         }
         setMovies(data.results || []);
         setTotalPages(data.total_pages || 1);
@@ -35,13 +37,36 @@ function Home() {
     };
 
     fetchMovies();
-  }, [searchQuery, currentPage]); // 🔹 Runs when searchQuery or page changes
+  }, [searchQuery, currentPage]);
 
-  const handleSearch = async (e) => {
+  // 🔹 Apply filters & sorting when movies change
+  useEffect(() => {
+    let updatedMovies = [...movies];
+
+    // Filter by genre if selected
+    if (selectedGenre !== "all") {
+      updatedMovies = updatedMovies.filter((movie) =>
+        movie.genre_ids.includes(Number(selectedGenre))
+      );
+    }
+
+    // Sort movies
+    if (sortOption === "rating") {
+      updatedMovies.sort((a, b) => b.vote_average - a.vote_average);
+    } else if (sortOption === "release_date") {
+      updatedMovies.sort(
+        (a, b) => new Date(b.release_date) - new Date(a.release_date)
+      );
+    }
+
+    setFilteredMovies(updatedMovies);
+  }, [movies, selectedGenre, sortOption]);
+
+  const handleSearch = (e) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
-    setSearchQuery(searchInput); // 🔹 Store the search query
-    setCurrentPage(1); // 🔹 Reset to Page 1 when searching
+    setSearchQuery(searchInput);
+    setCurrentPage(1);
   };
 
   const handlePageChange = (newPage) => {
@@ -50,86 +75,97 @@ function Home() {
   };
 
   return (
-    <>
-      {loading && <Loading />}
+    <div className={styles.home}>
+      {/* 🔹 Search Form */}
+      <form onSubmit={handleSearch} className={styles["search-form"]}>
+        <input
+          type="text"
+          placeholder="Search for movies..."
+          className={styles["search-input"]}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+        <button
+          type="submit"
+          className={styles["search-button"]}
+          disabled={!searchInput.trim() || loading}
+        >
+          Search
+        </button>
+      </form>
 
-      <div
-        className={styles.home}
-        style={{
-          opacity: loading ? 0.5 : 1,
-          transition: "opacity 0.2s ease",
-        }}
-      >
-        <form onSubmit={handleSearch} className={styles["search-form"]}>
-          <input
-            type="text"
-            placeholder="Search for movies..."
-            className={styles["search-input"]}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-          <button
-            type="submit"
-            className={styles["search-button"]}
-            disabled={!searchInput.trim() || loading}
-          >
-            Search
-          </button>
-        </form>
+      {/* 🔹 Filter & Sort Options */}
+      <div className={styles["filter-sort"]}>
+        <select
+          value={selectedGenre}
+          onChange={(e) => setSelectedGenre(e.target.value)}
+        >
+          <option value="all">All Genres</option>
+          <option value="28">Action</option>
+          <option value="35">Comedy</option>
+          <option value="18">Drama</option>
+          <option value="27">Horror</option>
+          <option value="10749">Romance</option>
+        </select>
 
-        {error && <div className={styles["error-message"]}>{error}</div>}
-
-        {movies.length === 0 ? ( // 🔹 Show "No Results" message when empty
-          <div className={styles["no-results"]}>
-            <h2>Oops... No movies found!</h2>
-            <p>Try searching for something else.</p>
-          </div>
-        ) : (
-          <>
-            <div className={styles["movies-grid"]}>
-              {movies.map((movie) => (
-                <Link
-                  key={movie.id}
-                  to={`/${movie.id}`}
-                  className={styles["movie-link"]}
-                >
-                  <MovieCard movie={movie} />
-                </Link>
-              ))}
-            </div>
-
-            {/* 1. Object.values(movies).map((movie, index) => (
-                <MovieCard movie={movie} key={movie.id || index} />
-            )); */}
-
-            {/* 2. Object.entries(movies).map(([key, movie]) => (
-                <MovieCard movie={movie} key={key} />
-            )); */}
-
-            {/* Pagination Controls (Only show if movies exist) */}
-            {totalPages > 1 && (
-              <div className={styles.pagination}>
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  ◀ Prev
-                </button>
-                <p>
-                  Page <span>{currentPage}</span> of {totalPages}
-                </p>
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next ▶
-                </button>
-              </div>
-            )}
-          </>
-        )}
+        <select
+          value={sortOption}
+          onChange={(e) => setSortOption(e.target.value)}
+        >
+          <option value="default">Sort By</option>
+          <option value="rating">Highest Rating</option>
+          <option value="release_date">Newest Release</option>
+        </select>
       </div>
-    </>
+
+      {/* 🔹 Error Message */}
+      {error && <div className={styles["error-message"]}>{error}</div>}
+
+      {/* 🔹 Movie Display */}
+      {loading ? (
+        <div className={styles.loading}>Loading...</div>
+      ) : filteredMovies.length === 0 ? (
+        <div className={styles["no-results"]}>
+          <h2>Oops... No movies found!</h2>
+          <p>Try searching for something else.</p>
+        </div>
+      ) : (
+        <>
+          <div className={styles["movies-grid"]}>
+            {filteredMovies.map((movie) => (
+              <Link
+                key={movie.id}
+                to={`/${movie.id}`}
+                className={styles["movie-link"]}
+              >
+                <MovieCard movie={movie} />
+              </Link>
+            ))}
+          </div>
+
+          {/* 🔹 Pagination Controls */}
+          {totalPages > 1 && (
+            <div className={styles.pagination}>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                ◀ Prev
+              </button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Next ▶
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
