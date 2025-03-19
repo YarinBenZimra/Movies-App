@@ -1,5 +1,11 @@
 # Getting Started with Create React App
 
+npx create-react-app movie-app
+cd movie-app
+npm start
+npm install react-router-dom
+npm install axios
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
